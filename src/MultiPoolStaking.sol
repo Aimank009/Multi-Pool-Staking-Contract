@@ -137,9 +137,12 @@ contract MultiPoolStaking is
         Pool storage pool = pools[_poolId];
         UserInfo storage user = userInfo[_poolId][msg.sender];
 
-        require(pool.isPaused, "Pool is Paused");
+        require(!pool.isPaused, "Pool is Paused");
 
-        require(block.timestamp > pool.endTime, "Pool Ended");
+        require(
+            pool.endTime == 0 || block.timestamp < pool.endTime,
+            "Pool Ended"
+        );
 
         _updatePool(_poolId);
 
@@ -156,6 +159,11 @@ contract MultiPoolStaking is
             }
         }
 
+        require(
+            pool.stakingToken.transferFrom(msg.sender, address(this), _amount),
+            "Staking tokens tranfer failed"
+        );
+
         pool.totalStaked += _amount;
         user.amount += _amount;
 
@@ -166,5 +174,42 @@ contract MultiPoolStaking is
         user.lockEnd = block.timestamp + pool.lockDuration;
 
         emit Staked(msg.sender, _poolId, _amount);
+    }
+
+    function withdraw(
+        uint256 _poolId,
+        uint256 _amount
+    ) external override nonReentrant {
+        require(_poolId < pools.length, "Pool does not exist");
+
+        Pool storage pool = pools[_poolId];
+        UserInfo storage user = userInfo[_poolId][msg.sender];
+
+        require(_amount > 0, "Amount should be greater than zero");
+        require(user.amount >= _amount, "Not enough staked");
+        require(block.timestamp >= user.lockEnd, "Still locked");
+        _updatePool(_poolId);
+        uint256 pending = (user.amount * pool.accRewardPerShare) /
+            PRECISION -
+            user.rewardDebt;
+
+        if (pending > 0) {
+            require(
+                pool.rewardingToken.transfer(msg.sender, pending),
+                "Pending rewards transfer failed"
+            );
+        }
+
+        user.amount -= _amount;
+
+        user.rewardDebt = (user.amount * pool.accRewardPerShare) / PRECISION;
+
+        pool.totalStaked -= _amount;
+        require(
+            pool.stakingToken.transfer(msg.sender, _amount),
+            "Withdraw Failed"
+        );
+
+        emit Withdrawn(msg.sender, _poolId, _amount);
     }
 }
