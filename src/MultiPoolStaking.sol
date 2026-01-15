@@ -302,7 +302,7 @@ contract MultiPoolStaking is
         require(_poolId < pools.length, "Pool does not exist");
         Pool storage pool = pools[_poolId];
 
-        require(pool.isPaused, "Pool is paused");
+        require(!pool.isPaused, "Pool is already paused");
 
         pool.isPaused = true;
         emit PoolPaused(_poolId);
@@ -312,7 +312,7 @@ contract MultiPoolStaking is
         require(_poolId < pools.length, "Pool does not exist");
         Pool storage pool = pools[_poolId];
 
-        require(!pool.isPaused, "Pool is not  paused");
+        require(pool.isPaused, "Pool is not  paused");
 
         pool.isPaused = false;
         emit PoolResumed(_poolId);
